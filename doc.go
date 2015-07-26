@@ -1,6 +1,6 @@
 // lscom project doc.go
 
 /*
-lscom document
+gps2tcp document
 */
-package main
+package gps2tcp
