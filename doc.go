@@ -1,5 +1,3 @@
-// lscom project doc.go
-
 /*
 gps2tcp document
 */
