@@ -56,9 +56,19 @@ func (s *Server) Stop() {
 // Run stops when the incoming channel is closed.
 func (s *Server) Run(wg *sync.WaitGroup) {
 	// Start the serial reader.
-	go LoopSerialChannel(s.done, s.comPort, s.chanIn)
+	sc := &serialToChan{
+		done:      s.done,
+		port:      s.comPort,
+		bytesChan: s.chanIn,
+	}
+	go sc.Run()
 	// Start the Listener.
-	go LoopListener(s.done, s.address, s.newChan)
+	lc := &listenerToChan{
+		addr:   s.address,
+		done:   s.done,
+		wcChan: s.newChan,
+	}
+	go lc.Run()
 
 ForLoop:
 	for {
@@ -67,13 +77,14 @@ ForLoop:
 			// Start a new LoopTcp.
 			log.Printf("Run: New tcp channel arrived: %d.\n", s.chanID)
 			nc := make(chan []byte)
+			// Create new chan to writer.
 			cw := &chanToWriterCloser{
 				id:        s.chanID,
 				in:        nc,
 				out:       wc,
 				closeChan: s.closeChan,
 			}
-			go LoopTcp(cw)
+			go cw.Run()
 			log.Printf("Run: LoopTcp started: %d.\n", s.chanID)
 			// Add connection to the map.
 			s.chansOut[cw.id] = nc

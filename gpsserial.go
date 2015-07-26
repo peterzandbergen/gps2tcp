@@ -15,8 +15,14 @@ const (
 	BaudRate   = 4800
 )
 
-func LoopSerialChannel(done <-chan struct{}, port string, bytesChan chan<- []byte) {
+type serialToChan struct {
+	port      string
+	bytesChan chan<- []byte
+	done      <-chan struct{}
+}
 
+// Run blocks.
+func (sc *serialToChan) Run() {
 	// Ser is nil when closed.
 	var ser io.ReadWriteCloser
 
@@ -26,7 +32,7 @@ func LoopSerialChannel(done <-chan struct{}, port string, bytesChan chan<- []byt
 			log.Printf("LoopSerial: Opening the port.\n")
 			var err error
 			// Open the serial port.
-			ser, err = OpenSerial(port)
+			ser, err = OpenSerial(sc.port)
 			if err != nil {
 				log.Printf("LoopSerial: Error opening the port: %s.\n", err.Error())
 				ser = nil
@@ -51,7 +57,7 @@ func LoopSerialChannel(done <-chan struct{}, port string, bytesChan chan<- []byt
 				// Set outChan to nil because we have nothing to send.
 				outChan = nil
 			} else {
-				outChan = bytesChan
+				outChan = sc.bytesChan
 			}
 
 			// Send the character to the channel, but don't wait.
@@ -62,11 +68,11 @@ func LoopSerialChannel(done <-chan struct{}, port string, bytesChan chan<- []byt
 				// log.Printf("LoopSerial: Read %d bytes.\n", n)
 				b = nil
 
-			case <-done:
+			case <-sc.done:
 				// Time to stop.
 				ser.Close()
 				ser = nil
-				close(bytesChan)
+				close(sc.bytesChan)
 
 				// default:
 			}
@@ -75,7 +81,7 @@ func LoopSerialChannel(done <-chan struct{}, port string, bytesChan chan<- []byt
 	}
 }
 
-// Open opens the serial port with name and returns an interface or an error.
+// OpenSerial opens the serial port with name and returns an interface or an error.
 // It tries 5 times to open the port to add some time for the port to be ready.
 func OpenSerial(name string) (io.ReadWriteCloser, error) {
 	var err error
