@@ -34,15 +34,15 @@ func NewServer(addr string, comPort string) *Server {
 		address: addr,
 	}
 	// Create the bytes in channel.
-	s.chanIn = make(chan []byte)
+	s.chanIn = make(chan []byte, 10)
 	// Fan out channels.
-	s.chansOut = make(map[int]chan []byte)
+	s.chansOut = make(map[int]chan []byte, 10)
 	// Close channel.
-	s.closeChan = make(chan int)
+	s.closeChan = make(chan int, 10)
 	// Done channel.
 	s.done = make(chan struct{})
 	// Channel for new connections.
-	s.newChan = make(chan io.WriteCloser)
+	s.newChan = make(chan io.WriteCloser, 10)
 
 	return s
 }
@@ -100,13 +100,13 @@ ForLoop:
 			// Fan out the buffer.
 			for _, c := range s.chansOut {
 				// Get a new buffer, copy the bytes and send on.
-				nb := getBuffer()
+				nb := getBuffer("Run: asking for buffer for fan out.")
 
 				nc := copy(nb, b)
 				c <- nb[:nc]
 			}
 			// Return the buffer to the pool.
-			putBuffer(b)
+			putBuffer(b, "Run: returning buffer from serial.")
 		}
 	}
 	if wg != nil {

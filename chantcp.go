@@ -19,11 +19,11 @@ func LoopTcp(cw *chanToWriterCloser) {
 		n, err := cw.out.Write(b)
 		_ = n
 		// log.Printf("LoopTcp: Bytes written: %d.\n", n)
-		putBuffer(b)
 		if err != nil {
 			// log.Printf("LoopTcp: Error writing bytes: %s.\n", err.Error())
 			cw.closeChan <- cw.id
 		}
+		putBuffer(b, "LoopTcp: returning buffer after writing to socket.")
 	}
 	log.Printf("LoopTcp: Exiting.\n")
 }

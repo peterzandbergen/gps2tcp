@@ -17,10 +17,12 @@ const (
 
 func LoopSerialChannel(done <-chan struct{}, port string, bytesChan chan<- []byte) {
 
+	// Ser is nil when closed.
 	var ser io.ReadWriteCloser
+
 	for {
-		// Open serial port.
 		if ser == nil {
+			// Open serial port.
 			log.Printf("LoopSerial: Opening the port.\n")
 			var err error
 			// Open the serial port.
@@ -29,39 +31,46 @@ func LoopSerialChannel(done <-chan struct{}, port string, bytesChan chan<- []byt
 				log.Printf("LoopSerial: Error opening the port: %s.\n", err.Error())
 				ser = nil
 			}
-			select {
-			case <-done:
-				log.Println("Done is closed.")
-				close(bytesChan)
-				return
-			default:
-			}
-		} else {
-			// log.Printf("LoopSerial: Starting to read.\n")
+		}
+
+		var outChan chan<- []byte
+
+		if ser != nil {
 			// Read buf from serial.
-			b := getBuffer()
+			b := getBuffer("LoopSerial: asking for buffer.")
 			n, err := ser.Read(b)
 			if err != nil || n == 0 {
-				putBuffer(b)
+				// Error reading the serial port.
 				log.Printf("LoopSerial: Error reading the serial port. Closing it.")
+				// Return and invalidate the buffer.
+				putBuffer(b, "LoopSerial: returning buffer because of read error.")
+				b = nil
+				// Close serial.
 				ser.Close()
 				ser = nil
+				// Set outChan to nil because we have nothing to send.
+				outChan = nil
 			} else {
-				// Send the character to the channel, but don't wait.
-				select {
-				case bytesChan <- b[:n]:
-					// nothing to do.
-					// log.Printf("LoopSerial: Read %d bytes: %s\n", n, string(b))
-					// log.Printf("LoopSerial: Read %d bytes.\n", n)
-
-				case <-done:
-					// Time to stop.
-					ser.Close()
-					close(bytesChan)
-
-				default:
-				}
+				outChan = bytesChan
 			}
+
+			// Send the character to the channel, but don't wait.
+			select {
+			case outChan <- b[:n]:
+				// nothing to do.
+				// log.Printf("LoopSerial: Read %d bytes: %s\n", n, string(b))
+				// log.Printf("LoopSerial: Read %d bytes.\n", n)
+				b = nil
+
+			case <-done:
+				// Time to stop.
+				ser.Close()
+				ser = nil
+				close(bytesChan)
+
+				// default:
+			}
+
 		}
 	}
 }
