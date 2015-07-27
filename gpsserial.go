@@ -15,13 +15,19 @@ const (
 	BaudRate   = 4800
 )
 
+// serialToChan
 type serialToChan struct {
-	port      string
+	// The serial port, COM5 for me.
+	port string
+	// Channel that Run sends the read bytes to.
 	bytesChan chan<- []byte
-	done      <-chan struct{}
+	// done is closed to indicate that Run can stop.
+	done <-chan struct{}
 }
 
-// Run blocks.
+// Run starts reading bytes from the serial port, (re)opening it if needed
+// and sends the read bytes to the channel.
+// Run blocks so should be called as a go routine.
 func (sc *serialToChan) Run() {
 	// Ser is nil when closed.
 	var ser io.ReadWriteCloser
@@ -32,18 +38,19 @@ func (sc *serialToChan) Run() {
 			log.Printf("LoopSerial: Opening the port.\n")
 			var err error
 			// Open the serial port.
-			ser, err = OpenSerial(sc.port)
+			ser, err = openSerial(sc.port)
 			if err != nil {
 				log.Printf("LoopSerial: Error opening the port: %s.\n", err.Error())
 				ser = nil
 			}
 		}
 
-		var outChan chan<- []byte
+		// b is nil if no bytes were received.
+		var b []byte
 
 		if ser != nil {
 			// Read buf from serial.
-			b := getBuffer("LoopSerial: asking for buffer.")
+			b = getBuffer("LoopSerial: asking for buffer.")
 			n, err := ser.Read(b)
 			if err != nil || n == 0 {
 				// Error reading the serial port.
@@ -54,36 +61,35 @@ func (sc *serialToChan) Run() {
 				// Close serial.
 				ser.Close()
 				ser = nil
-				// Set outChan to nil because we have nothing to send.
-				outChan = nil
 			} else {
-				outChan = sc.bytesChan
+				b = b[:n]
 			}
+		}
 
-			// Send the character to the channel, but don't wait.
-			select {
-			case outChan <- b[:n]:
-				// nothing to do.
-				// log.Printf("LoopSerial: Read %d bytes: %s\n", n, string(b))
-				// log.Printf("LoopSerial: Read %d bytes.\n", n)
-				b = nil
+		if b != nil {
+			// Send the bytes to the channel.
+			sc.bytesChan <- b
+			// Set b to nil to indicate that it has been sent.
+			b = nil
+		}
 
-			case <-sc.done:
-				// Time to stop.
+		// Check if the done channel has been closed, but don't wait.
+		select {
+		case <-sc.done:
+			// Time to stop.
+			if ser != nil {
 				ser.Close()
-				ser = nil
-				close(sc.bytesChan)
-
-				// default:
 			}
-
+			close(sc.bytesChan)
+			return
+		default:
 		}
 	}
 }
 
 // OpenSerial opens the serial port with name and returns an interface or an error.
 // It tries 5 times to open the port to add some time for the port to be ready.
-func OpenSerial(name string) (io.ReadWriteCloser, error) {
+func openSerial(name string) (io.ReadWriteCloser, error) {
 	var err error
 	for i := 0; i < Retries; i++ {
 		// First check 5 times if the port exists.
