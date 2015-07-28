@@ -102,7 +102,7 @@ ForLoop:
 			// log.Printf("Run: Bytes arrived: %d.\n", len(b))
 			if !ok {
 				// Close all outgoing channels and stop.
-				log.Println("Chan in closed.")
+				log.Println("Incoming bytes channel closed.")
 				for _, c := range s.chansOut {
 					close(c)
 				}

@@ -33,6 +33,7 @@ func (sc *serialToChan) Run() {
 	var ser io.ReadWriteCloser
 
 	for {
+		// Open the serial port.
 		if ser == nil {
 			// Open serial port.
 			log.Printf("LoopSerial: Opening the port.\n")
@@ -42,6 +43,7 @@ func (sc *serialToChan) Run() {
 			if err != nil {
 				log.Printf("LoopSerial: Error opening the port: %s.\n", err.Error())
 				ser = nil
+				time.Sleep(5 * time.Second)
 			}
 		}
 
@@ -88,23 +90,17 @@ func (sc *serialToChan) Run() {
 }
 
 // OpenSerial opens the serial port with name and returns an interface or an error.
-// It tries 5 times to open the port to add some time for the port to be ready.
+// It tries Retries times to open the port to add some time for the port to be ready.
 func openSerial(name string) (io.ReadWriteCloser, error) {
 	var err error
-	for i := 0; i < Retries; i++ {
-		// First check 5 times if the port exists.
-		log.Printf("Checking for port presence attempt %d.\n", i+1)
-		_, err = os.Stat(name)
-		if err != nil {
-			time.Sleep(RetrySleep)
-		} else {
-			break
-		}
-	}
+	// First check 5 if the port exists.
+	log.Printf("Checking for port presence.\n")
+	_, err = os.Stat(name)
 	if err != nil {
 		return nil, err
 	}
-	// Try to open the port.
+
+	// Open the port.
 	log.Printf("Opening the port.\n")
 	cfg := &serial.Config{
 		Name:        name,
